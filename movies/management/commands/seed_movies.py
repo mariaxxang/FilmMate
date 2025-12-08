@@ -1,8 +1,8 @@
-# movies/management/commands/seed_movies.py
 from django.core.management.base import BaseCommand
 from ...factories import MovieFactory
 import tmdbsimple as tmdb
 import os
+import random
 
 tmdb.API_KEY = os.getenv("TMDB_API_KEY")
 
@@ -17,14 +17,22 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"Failed to fetch genres: {e}"))
             genre_list = []
 
-        # Fetch popular movies
-        try:
-            popular_movies = tmdb.Movies().popular().get('results', [])[:150]
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Failed to fetch popular movies: {e}"))
-            return
+        movies = []
+        for _ in range(30): 
+            page = random.randint(1, 500) 
+            try:
+                response = tmdb.Discover().movie(page=page)
+                results = response.get('results', [])
+                if not results:
+                    continue
+                movies.extend(results)
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Failed to fetch movies for page {page}: {e}"))
+                continue
 
-        for item in popular_movies:
+        movies = movies[:150] 
+
+        for item in movies:
             title = item.get('title') or 'Untitled Movie'
             release_date = item.get('release_date') or ''
             year = int(release_date[:4]) if release_date else 0
@@ -32,7 +40,6 @@ class Command(BaseCommand):
             genre_ids = item.get('genre_ids', [])
             poster_path = item.get('poster_path')
 
-            # Get director name
             director = 'Unknown'
             try:
                 credits = tmdb.Movies(item['id']).credits()
