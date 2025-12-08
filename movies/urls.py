@@ -12,4 +12,5 @@ urlpatterns = [
     path('all/', views.movies_all, name='movies_all'),
     path('movie/<int:movie_id>/watched/', views.toggle_watched, name='toggle_watched'),
     path("my-films/", views.my_films, name="my_films"),
+    path('api/recommend/', views.recommend_movie_api, name='recommend_api'),
 ]

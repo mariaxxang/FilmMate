@@ -1,15 +1,20 @@
+import json 
 from django.shortcuts import get_object_or_404, render, redirect
 from django.core.paginator import Paginator
-from movies.models import Movie
-from genres.models import Genre
-from lists.models import List
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt 
+from django.views.decorators.http import require_POST 
 from django.contrib.auth.decorators import login_required
-from reviews.forms import ReviewForm
-from users.models import FriendRequest
-from django.shortcuts import get_object_or_404, redirect
-from movies.models import WatchedMovie 
 from django.db.models import Avg
 
+from movies.models import Movie, WatchedMovie
+from genres.models import Genre
+from lists.models import List
+from reviews.forms import ReviewForm
+from users.models import FriendRequest
+
+# Make sure chroma_utils.py is in the same folder, or adjust this path:
+from .vector.chroma_utils import get_recommendation
 
 
 def movie_home(request):
@@ -26,7 +31,7 @@ def movie_home(request):
             .order_by('-created')
         )
 
-        # ✅ NEW FROM FRIENDS
+        # Friends activity
         friends = request.user.friends.all()
 
         # Get up to 7 most recent movies watched by friends
@@ -204,5 +209,28 @@ def movies_all(request):
         'genre_filter': genre_filter,
         'sort': sort,
     })
-    
-    
+
+# --- AI RECOMMENDATION API (UPDATED) ---
+
+@csrf_exempt
+@require_POST
+def recommend_movie_api(request):
+    try:
+        data = json.loads(request.body)
+        user_query = data.get('message', '').strip()
+
+        if not user_query:
+            return JsonResponse({'status': 'error', 'message': 'Please say something!'}, status=400)
+
+        # The function now returns { "text_response": "...", "recommendations": [...] }
+        ai_data = get_recommendation(user_query)
+
+        return JsonResponse({
+            'status': 'success',
+            'message': ai_data.get('text_response', ''),
+            'movies': ai_data.get('recommendations', [])
+        })
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Server error.'}, status=500)

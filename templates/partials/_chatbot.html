@@ -1,0 +1,168 @@
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<button id="chatbot-toggle" class="btn btn-primary rounded-circle shadow-lg d-flex align-items-center justify-content-center" 
+        style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; z-index: 1000;">
+    <span style="font-size: 30px;">🤖</span>
+</button>
+
+<div id="chatbot-window" class="card shadow-lg d-none" 
+     style="position: fixed; bottom: 100px; right: 30px; width: 350px; height: 500px; z-index: 1000; border-radius: 15px; overflow: hidden;">
+    
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 small fw-bold">FilmMate AI 🤖</h5>
+        <button id="chatbot-close" class="btn btn-sm btn-link text-white text-decoration-none" style="font-size: 1.2rem;">&times;</button>
+    </div>
+
+    <div id="chatbot-messages" class="card-body bg-light overflow-auto" style="height: 380px; display: flex; flex-direction: column; gap: 10px;">
+        <div class="d-flex flex-row justify-content-start">
+            <div class="p-2 bg-white border rounded shadow-sm text-dark small" style="max-width: 85%;">
+                Hi! I'm your FilmMate AI. Ask me for movie recommendations! 🎬
+            </div>
+        </div>
+    </div>
+
+    <div class="card-footer bg-white p-2">
+        <form id="chatbot-form" class="d-flex gap-2">
+            <input type="text" id="chatbot-input" class="form-control form-control-sm" placeholder="Recommend a sci-fi movie..." required autocomplete="off">
+            <button type="submit" class="btn btn-primary btn-sm">➤</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const toggleBtn = document.getElementById('chatbot-toggle');
+    const chatWindow = document.getElementById('chatbot-window');
+    const closeBtn = document.getElementById('chatbot-close');
+    const chatForm = document.getElementById('chatbot-form');
+    const chatInput = document.getElementById('chatbot-input');
+    const messagesContainer = document.getElementById('chatbot-messages');
+
+    // Toggle Chat Window
+    toggleBtn.addEventListener('click', () => {
+        chatWindow.classList.toggle('d-none');
+    });
+    closeBtn.addEventListener('click', () => {
+        chatWindow.classList.add('d-none');
+    });
+
+    // --- Helper: Add Text Message ---
+    function addMessage(text, isUser) {
+        const div = document.createElement('div');
+        div.className = isUser ? "d-flex flex-row justify-content-end" : "d-flex flex-row justify-content-start";
+        
+        const bubble = document.createElement('div');
+        bubble.className = isUser 
+            ? "p-2 bg-primary text-white rounded shadow-sm small" 
+            : "p-2 bg-white border text-dark rounded shadow-sm small";
+        bubble.style.maxWidth = "85%";
+        
+        if (isUser) {
+            bubble.innerText = text;
+        } else {
+            // Parse Markdown for the intro text
+            bubble.innerHTML = marked.parse(text);
+        }
+
+        // Remove extra margins from markdown paragraphs
+        bubble.querySelectorAll('p').forEach(p => p.style.marginBottom = '5px');
+
+        div.appendChild(bubble);
+        messagesContainer.appendChild(div);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight; 
+    }
+
+    // --- Helper: Render Movie Cards (The JSON Fix) ---
+    function renderMovies(movies) {
+        if (!movies || movies.length === 0) return;
+
+        const container = document.createElement('div');
+        container.className = "d-flex flex-column gap-2 mt-1 align-items-start"; // Stack movies vertically
+        container.style.maxWidth = "95%";
+
+        const moviesHtml = movies.map(m => {
+            // Handle missing poster
+            const poster = m.poster_url ? m.poster_url : 'https://via.placeholder.com/48x72?text=No+Img';
+            
+            return `
+            <div class="d-flex flex-row bg-white border rounded p-2 shadow-sm w-100">
+                <img src="${poster}" width="50" height="75" class="rounded me-2" style="object-fit: cover; flex-shrink: 0;">
+                <div style="min-width: 0;">
+                    <a href="${m.detail_link}" class="fw-bold text-primary text-decoration-none d-block text-truncate" style="font-size: 0.95rem;">
+                        ${m.title} <span class="text-muted small">(${m.year})</span>
+                    </a>
+                    <div class="badge bg-secondary mb-1" style="font-size: 0.65rem;">${m.genre}</div>
+                    <div class="text-muted small fst-italic" style="font-size: 0.75rem; line-height: 1.2;">
+                        "${m.reason}"
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = moviesHtml;
+        messagesContainer.appendChild(container);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // --- Loading Indicator ---
+    function addLoading() {
+        const div = document.createElement('div');
+        div.id = "chatbot-loading";
+        div.className = "d-flex flex-row justify-content-start";
+        div.innerHTML = `
+            <div class="p-2 bg-white border rounded shadow-sm small text-muted">
+                Thinking... 🤔
+            </div>`;
+        messagesContainer.appendChild(div);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function removeLoading() {
+        const loading = document.getElementById('chatbot-loading');
+        if (loading) loading.remove();
+    }
+
+    // --- Form Submit Handler ---
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const query = chatInput.value.trim();
+        if (!query) return;
+
+        // 1. Show User Message
+        addMessage(query, true);
+        chatInput.value = '';
+        addLoading();
+
+        try {
+            // 2. Send Request to Backend
+            const response = await fetch("/api/recommend/", { // Ensure this URL matches urls.py
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                // IMPORTANT: Sending 'message' to match backend
+                body: JSON.stringify({ message: query }) 
+            });
+
+            const data = await response.json();
+            removeLoading();
+
+            if (data.status === 'success') {
+                // 3a. Show the Intro Text
+                if (data.message) {
+                    addMessage(data.message, false);
+                }
+                // 3b. Show the Movie Cards
+                if (data.movies && data.movies.length > 0) {
+                    renderMovies(data.movies);
+                }
+            } else {
+                addMessage(data.message || "Sorry, I couldn't understand that.", false);
+            }
+
+        } catch (error) {
+            removeLoading();
+            console.error(error);
+            addMessage("Error connecting to server.", false);
+        }
+    });
+</script>

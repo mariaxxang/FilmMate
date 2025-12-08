@@ -1,0 +1,17 @@
+asgiref==3.10.0
+Django==5.2.7
+django-extensions==3.2.3
+sqlparse==0.5.3
+tzdata==2025.2
+python-dotenv==1.1.1
+psycopg2==2.9.10
+pillow==10.4.0
+
+--- AI & Vector Database ---
+
+chromadb==0.6.3
+langchain==0.3.14
+langchain-community==0.3.14
+langchain-core==0.3.29
+langchain-google-genai==2.0.8
+google-generativeai==0.8.4
