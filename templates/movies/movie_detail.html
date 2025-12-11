@@ -6,9 +6,9 @@
 
 {% block content %}
 <div class="container my-4">
+  
   <div class="row g-4">
 
-    <!-- 🎞 Left column: Poster and quick info -->
     <div class="col-lg-3">
       <div class="card bg-dark text-light border-secondary">
         <img src="{{ movie.poster }}" class="card-img-top img-fluid" alt="{{ movie.title }} poster" />
@@ -20,7 +20,6 @@
       </div>
     </div>
 
-    <!-- 📝 Center column: Description and reviews -->
     <div class="col-lg-5 border-0">
       <div class="card p-3 bg-dark text-light border-0">
         <div class="card-body">
@@ -33,11 +32,10 @@
             <strong>Genres:</strong>
             {% for g in movie.genres.all %}
             <a href="{% url 'movies:movies_all' %}?genre={{ g.name|urlencode }}"
-              class="badge bg-secondary text-light me-1">
+              class="badge bg-secondary text-light me-1 text-decoration-none">
               {{ g.name }}
             </a>
             {% endfor %}
-
           </div>
 
           <hr>
@@ -71,7 +69,6 @@
       </div>
     </div>
 
-    <!-- 🧭 Right column: Actions -->
     <div class="col-lg-4">
       <div class="card p-3 bg-dark text-light border-secondary">
         <div class="card-body">
@@ -79,8 +76,7 @@
           {% if request.user.is_authenticated %}
           <div class="d-flex flex-column align-items-start gap-2 mt-2">
 
-            <!-- 📌 Watchlist -->
-            <form method="post" action="{% url 'movies:movie_detail' movie.id %}">
+            <form method="post" action="{% url 'movies:movie_detail' movie.id %}" class="w-100">
               {% csrf_token %}
               <input type="hidden" name="action" value="toggle_watchlist" />
               {% if in_watchlist %}
@@ -90,8 +86,7 @@
               {% endif %}
             </form>
 
-            <!-- 👁 Mark as Watched -->
-            <form method="post" action="{% url 'movies:movie_detail' movie.id %}">
+            <form method="post" action="{% url 'movies:movie_detail' movie.id %}" class="w-100">
               {% csrf_token %}
               <input type="hidden" name="action" value="mark_watched" />
               {% if watched %}
@@ -101,7 +96,6 @@
               {% endif %}
             </form>
 
-            <!-- ✍️ Write a Review -->
             {% if watched %}
             <button id="toggle-review-btn" class="btn btn-info btn-sm w-100 mt-2">✍️ Write a Review</button>
 
@@ -124,23 +118,54 @@
               </form>
             </div>
             {% else %}
-            <p class="text-light mt-2">👁 You can only review a movie after you’ve marked it as watched.</p>
+            <p class="text-light mt-2 small">👁 You can only review a movie after you’ve marked it as watched.</p>
             {% endif %}
 
           </div>
           {% else %}
-          <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-primary btn-sm w-100 mt-2">Login to
-            review</a>
+          <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-primary btn-sm w-100 mt-2">
+            Login to review
+          </a>
           {% endif %}
 
         </div>
       </div>
     </div>
 
-  </div>
-</div>
+{% if similar_movies %}
+  <div class="row mt-5">
+    <div class="col-12">
+      <h4 class="mb-4 border-start border-4 border-warning ps-2 text-light">
+        You Might Also Like
+      </h4>
+    </div>
 
-<!-- 🎬 Toggle review form -->
+    {% for sim_movie in similar_movies %}
+    <div class="col-6 col-md-3 mb-4">
+      <div class="card h-100 bg-dark text-light border-secondary shadow-sm hover-effect">
+        <a href="{% url 'movies:movie_detail' sim_movie.id %}" class="text-decoration-none text-light">
+          
+          {% if sim_movie.poster and sim_movie.poster != 'None' and sim_movie.poster != '' %}
+          <img src="{{ sim_movie.poster }}" class="card-img-top" alt="{{ sim_movie.title }}">
+          {% else %}
+          <div class="d-flex align-items-center justify-content-center bg-secondary text-white rounded-top" style="aspect-ratio: 2/3;">
+            <span class="fs-1">🎬</span>
+          </div>
+          {% endif %}
+
+          <div class="card-body p-2 text-center">
+            <div class="small fw-bold text-truncate mb-1">{{ sim_movie.title }}</div>
+            <small class="text-muted" style="font-size: 0.8rem;">({{ sim_movie.year }})</small>
+          </div>
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+    
+  </div>
+  {% endif %}
+  </div>
+
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('toggle-review-btn');
@@ -154,5 +179,6 @@
     }
   });
 </script>
+
 
 {% endblock %}
