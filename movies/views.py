@@ -12,9 +12,7 @@ from genres.models import Genre
 from lists.models import List
 from reviews.forms import ReviewForm
 from users.models import FriendRequest
-
-# Make sure chroma_utils.py is in the same folder, or adjust this path:
-from .vector.chroma_utils import get_recommendation
+from .vector.chroma_utils import get_recommendation, find_similar_movies_by_content
 
 
 def movie_home(request):
@@ -87,23 +85,27 @@ def movie_search(request):
 
 
 def movie_detail(request, pk):
-    """Show movie details + reviews + toggle watchlist + mark as watched + submit review."""
+    """Show movie details + reviews + toggle watchlist + mark as watched + submit review + SIMILAR MOVIES."""
     movie = get_object_or_404(Movie, pk=pk)
     reviews = movie.review_set.all().select_related("user").order_by("-date")
 
-    # Get user's Watchlist (creates one if missing)
-    watchlist, _ = List.objects.get_or_create(user=request.user, name="Watchlist")
-    in_watchlist = movie in watchlist.movies.all()
+    if request.user.is_authenticated:
+        watchlist, _ = List.objects.get_or_create(user=request.user, name="Watchlist")
+        in_watchlist = movie in watchlist.movies.all()
 
-    # Check if the movie is already watched
-    watched = WatchedMovie.objects.filter(user=request.user, movie=movie).exists()
+        watched = WatchedMovie.objects.filter(user=request.user, movie=movie).exists()
+    else:
+        in_watchlist = False
+        watched = False
 
     form = ReviewForm()
 
     if request.method == 'POST':
+        if not request.user.is_authenticated:
+            return redirect('users:login')
+
         action = request.POST.get('action')
 
-        # Toggle Watchlist
         if action == 'toggle_watchlist':
             if in_watchlist:
                 watchlist.movies.remove(movie)
@@ -111,14 +113,12 @@ def movie_detail(request, pk):
                 watchlist.movies.add(movie)
             return redirect('movies:movie_detail', pk=pk)
 
-        # Mark as Watched (also remove from watchlist)
         elif action == 'mark_watched':
             WatchedMovie.objects.get_or_create(user=request.user, movie=movie)
             if in_watchlist:
                 watchlist.movies.remove(movie)
             return redirect('movies:movie_detail', pk=pk)
 
-        # Submit Review
         elif action == 'submit_review':
             form = ReviewForm(request.POST)
             if form.is_valid():
@@ -127,12 +127,16 @@ def movie_detail(request, pk):
                 review.movie = movie
                 review.save()
 
-                # Recalculate and update the movie's average rating
                 avg_rating = movie.review_set.aggregate(Avg("rating"))["rating__avg"] or 0
                 movie.rating = round(avg_rating, 1)
                 movie.save(update_fields=["rating"])
 
                 return redirect('movies:movie_detail', pk=pk)
+
+    genre_names = " ".join([g.name for g in movie.genres.all()])
+    search_text = f"{movie.title} {genre_names} {movie.description}"
+
+    similar_movies = find_similar_movies_by_content(search_text, movie.id, top_k=4)
 
     context = {
         'movie': movie,
@@ -140,9 +144,9 @@ def movie_detail(request, pk):
         'in_watchlist': in_watchlist,
         'watched': watched,
         'form': form,
+        'similar_movies': similar_movies, # <-- Подаваме ги към темплейта
     }
     return render(request, 'movies/movie_detail.html', context)
-
 
 
 @login_required
