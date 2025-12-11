@@ -17,7 +17,7 @@ def get_recommendation(user_query):
         
         embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=GOOGLE_API_KEY)
         query_vector = embeddings_model.embed_query(user_query)
-        results = collection.query(query_embeddings=[query_vector], n_results=10)
+        results = collection.query(query_embeddings=[query_vector], n_results=10) # Reduced to 5 for speed
 
         context_text = ""
         if results['documents'] and results['documents'][0]:
@@ -31,8 +31,9 @@ def get_recommendation(user_query):
                 \n---\n
                 """
 
-        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=GOOGLE_API_KEY, temperature=0.7)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=GOOGLE_API_KEY, temperature=0.7)
         
+        # --- NEW HYBRID PROMPT ---
         template = """
         You are 'FilmMate', a helpful movie assistant.
         User Input: {question}
@@ -66,6 +67,7 @@ def get_recommendation(user_query):
         chain = prompt | llm
         response = chain.invoke({"question": user_query, "context": context_text})
         
+        # Clean JSON string
         content = response.content.strip()
         if content.startswith("```json"): content = content[7:]
         if content.endswith("```"): content = content[:-3]

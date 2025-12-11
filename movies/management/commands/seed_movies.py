@@ -3,7 +3,6 @@ from ...factories import MovieFactory
 import tmdbsimple as tmdb
 import os
 import random
-from movies.management.commands.ingest_chroma import ingest_all_movies
 
 tmdb.API_KEY = os.getenv("TMDB_API_KEY")
 
@@ -18,21 +17,22 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"Failed to fetch genres: {e}"))
             genre_list = []
 
-        # --- Random page sampling for variety ---
+        # --- FIX: Randomize Discover pages so results are always new ---
         movies = []
-        for _ in range(30):  # attempt 30 random pages
-            page = random.randint(1, 500)
+        for _ in range(30):  # still ~600 movies like before
+            page = random.randint(1, 500)  # TMDb Discover has ~500 pages
             try:
                 response = tmdb.Discover().movie(page=page)
                 results = response.get('results', [])
-                if results:
-                    movies.extend(results)
+                if not results:
+                    continue
+                movies.extend(results)
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"Failed to fetch movies for page {page}: {e}"))
+                continue
 
-        movies = movies[:150]  # limit to 150 movies
+        movies = movies[:150]  # keep your 150 limit the same
 
-        # --- Create Movies ---
         for item in movies:
             title = item.get('title') or 'Untitled Movie'
             release_date = item.get('release_date') or ''
@@ -41,7 +41,6 @@ class Command(BaseCommand):
             genre_ids = item.get('genre_ids', [])
             poster_path = item.get('poster_path')
 
-            # Fetch director
             director = 'Unknown'
             try:
                 credits = tmdb.Movies(item['id']).credits()
@@ -67,8 +66,3 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Movie '{movie.title}' added."))
             else:
                 self.stdout.write(self.style.NOTICE(f"Movie '{title}' already exists. Skipping."))
-
-        # --- Run Chroma ingest AFTER all movies are seeded ---
-        self.stdout.write(self.style.WARNING("Running Chroma ingest..."))
-        ingest_all_movies()
-        self.stdout.write(self.style.SUCCESS("Chroma ingest finished!"))
